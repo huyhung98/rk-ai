@@ -1,4 +1,6 @@
 const smsService = require('../services/smsService');
+const markoService = require('../services/markoService');
+const redisService = require('../services/redisService');
 
 class SmsController {
   async sendSms(req, res) {
@@ -28,10 +30,16 @@ class SmsController {
 
     try {
       await smsService.saveReceivedSms(From, To, Body, MessageSid);
-      
-      // Respond to Twilio with TwiML
-      res.set('Content-Type', 'text/xml');
-      res.send('<Response></Response>');
+      const marko = new markoService()
+
+      const channel_id = await marko.sendRequest(req.body.body)
+      console.log('Channel ID:', channel_id);
+
+      const messageBody = await redisService.getSessionMessage(channel_id);
+      console.log('Message body:', messageBody);
+
+      const result = await smsService.sendSms(req.body.from, messageBody);
+      res.json(result);
     } catch (error) {
       console.error('Error in receiveSms controller:', error);
       res.status(500).send('Error processing message');
@@ -47,6 +55,23 @@ class SmsController {
       res.status(500).json({
         error: error.message
       });
+    }
+  }
+
+  async webhook(req, res) {
+    try {
+      console.log("Received Webhook Request:");
+      console.log("Header:", req.header);
+      console.log("Body:", req.body);
+
+      res.status(200).json({
+        success: true
+      })
+    } catch (error) {
+      console.log("Error in webhook controller:", error);
+      res.status(500).json({
+        error: error.message
+      })
     }
   }
 }
