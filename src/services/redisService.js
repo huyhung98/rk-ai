@@ -8,7 +8,7 @@ const subscribers = new Map();
 
 class RedisService {
     constructor() {
-        this.client = redisClient;
+        this.publisher = redisClient;
         this.subscriber = null;
         this.init();
     }
@@ -16,13 +16,17 @@ class RedisService {
 
     async init() {
         try {
-            // Connect to Redis
-            await this.client.connect();
-            console.log('Connected to Redis');
+            // Connect to Redis if not already connected
+            if (!this.publisher.isOpen) {
+                await this.publisher.connect();
+                console.log('Connected to Redis');
+            }
 
-            // Create a separate subscriber client
-            this.subscriber = this.client.duplicate();
-            await this.subscriber.connect();
+            // Create a separate subscriber client if not already connected
+            if (!this.subscriber) {
+                this.subscriber = this.publisher.duplicate();
+                await this.subscriber.connect();
+            }
 
         } catch (error) {
             console.error('Redis connection error:', error);
@@ -31,8 +35,8 @@ class RedisService {
     }
 
     // Subscribe to a specific session channel
-    async subscribeToSession(sessionId, callback) {
-        const channel = `${sessionId}`;
+    async subscribeToSession(channelId, callback) {
+        const channel = `${channelId}`;
 
         try {
             await this.subscriber.subscribe(channel, (message) => {
@@ -44,7 +48,7 @@ class RedisService {
                 }
             });
 
-            subscribers.set(sessionId, callback);
+            subscribers.set(channelId, callback);
             console.log(`Subscribed to channel: ${channel}`);
         } catch (error) {
             console.error(`Error subscribing to ${channel}:`, error);
@@ -53,12 +57,12 @@ class RedisService {
     }
 
     // Unsubscribe from a session channel
-    async unsubscribeFromSession(sessionId) {
-        const channel = `${sessionId}`;
+    async unsubscribeFromSession(channelId) {
+        const channel = `${channelId}`;
 
         try {
             await this.subscriber.unsubscribe(channel);
-            subscribers.delete(sessionId);
+            subscribers.delete(channelId);
             console.log(`Unsubscribed from channel: ${channel}`);
         } catch (error) {
             console.error(`Error unsubscribing from ${channel}:`, error);
@@ -67,11 +71,11 @@ class RedisService {
     }
 
     // Publish a message to a session channel
-    async publishToSession(sessionId, message) {
-        const channel = `${sessionId}`;
+    async publishToSession(channelId, message) {
+        const channel = `${channelId}`;
 
         try {
-            await this.client.publish(channel, JSON.stringify(message));
+            await this.publisher.publish(channel, JSON.stringify(message));
             console.log(`Published message to ${channel}`);
         } catch (error) {
             console.error(`Error publishing to ${channel}:`, error);
@@ -80,27 +84,24 @@ class RedisService {
     }
 
     // Get accumulated message from a session
-    async getSessionMessage(sessionId) {
+    async getSessionMessage(channelId) {
         return new Promise((resolve) => {
-            let fullMessage = '';
-            let isDone = false;
-
             const callback = (error, message) => {
+                let fullMessage = '';
                 if (error) {
                     console.error('Error parsing message:', error);
                     return;
                 }
 
                 fullMessage += message.value;
-                isDone = message.done;
 
-                if (isDone) {
-                    this.unsubscribeFromSession(sessionId);
+                if (message.done) {
+                    this.unsubscribeFromSession(channelId);
                     resolve(fullMessage.trim());
                 }
             };
 
-            this.subscribeToSession(sessionId, callback);
+            this.subscribeToSession(channelId, callback);
         });
     }
 
@@ -108,7 +109,7 @@ class RedisService {
     async disconnect() {
         try {
             await this.subscriber.quit();
-            await this.client.quit();
+            await this.publisher.quit();
             subscribers.clear();
             console.log('Disconnected from Redis');
         } catch (error) {

@@ -1,6 +1,7 @@
 const smsService = require('../services/smsService');
 const markoService = require('../services/markoService');
 const redisService = require('../services/redisService');
+const urlShortenerService = require('../services/urlShortenerService');
 
 class SmsController {
   async sendSms(req, res) {
@@ -27,19 +28,22 @@ class SmsController {
 
   async receiveSms(req, res) {
     const { From, To, Body, MessageSid } = req.body;
+    console.log('Received SMS:', req.body);
 
     try {
       await smsService.saveReceivedSms(From, To, Body, MessageSid);
       const marko = new markoService()
 
-      const channel_id = await marko.sendRequest(req.body.body)
-      console.log('Channel ID:', channel_id);
+      const messageId = await marko.sendRequest(Body)
+      console.log('message ID:', messageId);
 
-      const messageBody = await redisService.getSessionMessage(channel_id);
-      console.log('Message body:', messageBody);
+      if (messageId) {
+        await smsService.updateMessageId(MessageSid, messageId);
+      }
 
-      const result = await smsService.sendSms(req.body.from, messageBody);
-      res.json(result);
+      res.json({
+        success: true
+      });
     } catch (error) {
       console.error('Error in receiveSms controller:', error);
       res.status(500).send('Error processing message');
@@ -60,13 +64,20 @@ class SmsController {
 
   async webhook(req, res) {
     try {
-      console.log("Received Webhook Request:");
-      console.log("Header:", req.header);
-      console.log("Body:", req.body);
+      const {event, data, messageId, error} = req.body;
+      console.log('Webhook data:', req.body);
 
-      res.status(200).json({
-        success: true
-      })
+      if (event === 'session:in_progress' && data && data.public_image_url && data.public_image_url.length > 0) {
+        const fileUrl = data.public_image_url[0];
+        // Shorten the file URL
+        const shortUrl = await urlShortenerService.shortenUrl(fileUrl);
+
+        // Query the recipient number using messageId
+        const recipientNumber = await smsService.getRecipientNumberByMessageId(messageId);
+        // Send the SMS to the recipient number
+        const result = await smsService.sendSms(recipientNumber, shortUrl);
+        res.json(result);
+      }
     } catch (error) {
       console.log("Error in webhook controller:", error);
       res.status(500).json({

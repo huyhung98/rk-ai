@@ -28,16 +28,32 @@ To run this project, ensure you have:
 
 3. **Set Up Environment Variables Create a .env file in the root directory with the following:**
     ```bash
-    DATABASE_URL=postgres://user:password@localhost:db_port/db_name
     PORT=3000
+    
+    #TWILIO
     TWILIO_AUTH_TOKEN=your_twilio_auth_token
     TWILIO_ACCOUNT_SID=your_twilio_account_sid
     TWILIO_PHONE_NUMBER=+1234567890
+    
+    #DB
     DB_USER=user
     DB_HOST=host
     DB_NAME=db_name
     DB_PASSWORD=password
-    DB_PORT=5432
+    DB_PORT=db_port
+    DATABASE_URL=postgres://user:password@localhost:db_port/db_name
+    
+    #REDIS
+    REDIS_URL=rediss://default:abcdef@hello-world-12345.something.io:6379
+    
+    #STORAGE
+    S3_FOLDER=folder
+    S3_BUCKET=assets
+    S3_REGION=us-east-1
+    
+    NEX_ENDPOINT=http://nex.example/
+    BASE_URL=http://localhost:3000
+
 4. **Run the Application**
     ```bash
     npm run dev
