@@ -1,4 +1,5 @@
 const db = require('../configs/database');
+const crypto = require('crypto');
 const uuidv4 = () => crypto.randomUUID();
 
 class UrlShortenerService {

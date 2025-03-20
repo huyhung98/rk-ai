@@ -1,5 +1,6 @@
 // ngrokService.js
 const axios = require('axios');
+const crypto = require('crypto');
 const uuidv4 = () => crypto.randomUUID();
 
 class MarkoService {

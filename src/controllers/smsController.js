@@ -67,14 +67,17 @@ class SmsController {
 
       if (event === EVENTS.SESSION_IN_PROGRESS && data?.presigned_image_urls?.length > 0) {
         const fileUrl = data.presigned_image_urls[0];
+        console.log('File URL:', fileUrl);
 
         const shortUrl = await urlShortenerService.shortenUrl(fileUrl);
         const modifiedShortUrl = shortUrl.replace('http://', ' ');
         const shortUrlWithoutDot = modifiedShortUrl.replaceAll('.', '(.)');
+        console.log('Short URL:', shortUrlWithoutDot);
 
         const recipientNumber = await smsService.getRecipientNumberByMessageId(messageId);
 
         const result = await smsService.sendSms(recipientNumber, shortUrlWithoutDot);
+        console.log('SMS sent:', result);
         res.json(result);
       }
     } catch (error) {
