@@ -5,8 +5,7 @@
     "express": "^4.19.2",
     "pg": "^8.14.0",
     "redis": "^4.7.0",
-    "twilio": "^5.5.0",
-    "uuid": "^11.1.0"
+    "twilio": "^5.5.0"
   },
   "name": "rikkei-ai-integrate",
   "version": "1.0.0",
