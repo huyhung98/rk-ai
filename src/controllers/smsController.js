@@ -1,6 +1,5 @@
 const smsService = require('../services/smsService');
 const markoService = require('../services/markoService');
-const redisService = require('../services/redisService');
 const urlShortenerService = require('../services/urlShortenerService');
 
 class SmsController {
@@ -32,16 +31,11 @@ class SmsController {
 
     try {
       await smsService.saveReceivedSms(From, To, Body, MessageSid);
-      const marko = new markoService()
+      const marko = new markoService(Body)
+      const messageId = await marko.sendRequest()
+      await smsService.updateMessageId(MessageSid, messageId);
 
-      const messageId = await marko.sendRequest(Body)
-      console.log('message ID:', messageId);
-
-      if (messageId) {
-        await smsService.updateMessageId(MessageSid, messageId);
-      }
-
-      res.json({
+      res.status(200).json({
         success: true
       });
     } catch (error) {
@@ -67,15 +61,20 @@ class SmsController {
       const {event, data, messageId, error} = req.body;
       console.log('Webhook data:', req.body);
 
-      if (event === 'session:in_progress' && data && data.public_image_url && data.public_image_url.length > 0) {
-        const fileUrl = data.public_image_url[0];
-        // Shorten the file URL
-        const shortUrl = await urlShortenerService.shortenUrl(fileUrl);
+      const EVENTS = {
+        SESSION_IN_PROGRESS: 'session:in_progress',
+      };
 
-        // Query the recipient number using messageId
+      if (event === EVENTS.SESSION_IN_PROGRESS && data?.presigned_image_urls?.length > 0) {
+        const fileUrl = data.presigned_image_urls[0];
+
+        const shortUrl = await urlShortenerService.shortenUrl(fileUrl);
+        const modifiedShortUrl = shortUrl.replace('http://', ' ');
+        const shortUrlWithoutDot = modifiedShortUrl.replaceAll('.', '(.)');
+
         const recipientNumber = await smsService.getRecipientNumberByMessageId(messageId);
-        // Send the SMS to the recipient number
-        const result = await smsService.sendSms(recipientNumber, shortUrl);
+
+        const result = await smsService.sendSms(recipientNumber, shortUrlWithoutDot);
         res.json(result);
       }
     } catch (error) {

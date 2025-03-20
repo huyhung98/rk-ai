@@ -9,18 +9,15 @@ const pool = new Pool({
   port: process.env.DB_PORT,
 });
 
-// Handle successful connection
 pool.on('connect', () => {
   console.log('Successfully connected to the database');
   createTableIfNotExists();
 });
 
-// Handle errors
 pool.on('error', (err) => {
   console.error('Database pool error:', err.stack);
 });
 
-// Function to create tables if they don't exist
 async function createTableIfNotExists() {
   try {
     const checkTablesExistQuery = `
@@ -58,7 +55,7 @@ async function createTableIfNotExists() {
         CREATE TABLE shortened_urls (
           id SERIAL PRIMARY KEY,
           short_id VARCHAR(8) NOT NULL UNIQUE,
-          long_url TEXT NOT NULL,
+          original_url TEXT NOT NULL,
           created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
       `;

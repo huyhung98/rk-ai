@@ -1,12 +1,11 @@
-// src/services/urlShortenerService.js
 const db = require('../configs/database');
-const { v4: uuidv4 } = require('uuid');
+const uuidv4 = () => crypto.randomUUID();
 
 class UrlShortenerService {
   async shortenUrl(longUrl) {
-    const shortId = uuidv4().slice(0, 8); // Generate a short ID
+    const shortId = uuidv4().slice(0, 8);
     const query = `
-      INSERT INTO shortened_urls (short_id, long_url)
+      INSERT INTO shortened_urls (short_id, original_url)
       VALUES ($1, $2)
       RETURNING short_id
     `;
@@ -21,9 +20,9 @@ class UrlShortenerService {
     }
   }
 
-  async getLongUrl(shortId) {
+  async getOriginalUrl(shortId) {
     const query = `
-      SELECT long_url
+      SELECT original_url
       FROM shortened_urls
       WHERE short_id = $1
     `;
@@ -31,14 +30,14 @@ class UrlShortenerService {
 
     try {
       const result = await db.query(query, values);
-      if (result.rows.length > 0) {
-        return result.rows[0].long_url;
+      if (result.rowCount > 0) {
+        return result.rows[0].original_url;
       } else {
         throw new Error('No URL found for the given short ID');
       }
     } catch (error) {
-      console.error('Error fetching long URL:', error);
-      throw new Error('Failed to fetch long URL');
+      console.error('Error fetching original URL:', error);
+      throw new Error('Failed to fetch original URL');
     }
   }
 }

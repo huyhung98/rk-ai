@@ -16,13 +16,11 @@ class RedisService {
 
     async init() {
         try {
-            // Connect to Redis if not already connected
             if (!this.publisher.isOpen) {
                 await this.publisher.connect();
                 console.log('Connected to Redis');
             }
 
-            // Create a separate subscriber client if not already connected
             if (!this.subscriber) {
                 this.subscriber = this.publisher.duplicate();
                 await this.subscriber.connect();
@@ -34,8 +32,7 @@ class RedisService {
         }
     }
 
-    // Subscribe to a specific session channel
-    async subscribeToSession(channelId, callback) {
+    async subscribeToChannel(channelId, callback) {
         const channel = `${channelId}`;
 
         try {
@@ -56,8 +53,8 @@ class RedisService {
         }
     }
 
-    // Unsubscribe from a session channel
-    async unsubscribeFromSession(channelId) {
+
+    async unsubscribeFromChannel(channelId) {
         const channel = `${channelId}`;
 
         try {
@@ -70,8 +67,7 @@ class RedisService {
         }
     }
 
-    // Publish a message to a session channel
-    async publishToSession(channelId, message) {
+    async publishToChannel(channelId, message) {
         const channel = `${channelId}`;
 
         try {
@@ -83,8 +79,8 @@ class RedisService {
         }
     }
 
-    // Get accumulated message from a session
-    async getSessionMessage(channelId) {
+
+    async getChannelMessage(channelId) {
         return new Promise((resolve) => {
             const callback = (error, message) => {
                 let fullMessage = '';
@@ -96,16 +92,15 @@ class RedisService {
                 fullMessage += message.value;
 
                 if (message.done) {
-                    this.unsubscribeFromSession(channelId);
+                    this.unsubscribeFromChannel(channelId);
                     resolve(fullMessage.trim());
                 }
             };
 
-            this.subscribeToSession(channelId, callback);
+            this.subscribeToChannel(channelId, callback);
         });
     }
 
-    // Cleanup on shutdown
     async disconnect() {
         try {
             await this.subscriber.quit();
@@ -119,7 +114,6 @@ class RedisService {
     }
 }
 
-// Singleton instance
 const redisService = new RedisService();
 
 module.exports = redisService;
