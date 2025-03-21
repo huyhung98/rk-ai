@@ -37,7 +37,7 @@ class MarkoService {
         try {
             await axios.post(process.env.NEX_ENDPOINT, data);
 
-            return messageId
+            return { channel, messageId };
         } catch (error) {
             console.error('Error sending request to NEX endpoint:', error);
             throw new Error('Failed to send request to NEX endpoint');

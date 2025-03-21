@@ -1,6 +1,7 @@
 const smsService = require('../services/smsService');
 const markoService = require('../services/markoService');
 const urlShortenerService = require('../services/urlShortenerService');
+const redisService = require('../services/redisService');
 
 class SmsController {
   async sendSms(req, res) {
@@ -32,8 +33,11 @@ class SmsController {
     try {
       await smsService.saveReceivedSms(From, To, Body, MessageSid);
       const marko = new markoService(Body)
-      const messageId = await marko.sendRequest()
+      const { channel, messageId } = await marko.sendRequest();
       await smsService.updateMessageId(MessageSid, messageId);
+
+      const finalChunkMessage = await redisService.getChannelMessage(channel)
+      console.log('Chunk message: ',  finalChunkMessage);
 
       res.status(200).json({
         success: true
