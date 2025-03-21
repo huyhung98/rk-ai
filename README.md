@@ -26,18 +26,8 @@ To run this project, ensure you have:
     ```bash
     npm install
 
-3. **Set Up Environment Variables Create a .env file in the root directory with the following:**
-    ```bash
-    DATABASE_URL=postgres://user:password@localhost:db_port/db_name
-    PORT=3000
-    TWILIO_AUTH_TOKEN=your_twilio_auth_token
-    TWILIO_ACCOUNT_SID=your_twilio_account_sid
-    TWILIO_PHONE_NUMBER=+1234567890
-    DB_USER=user
-    DB_HOST=host
-    DB_NAME=db_name
-    DB_PASSWORD=password
-    DB_PORT=5432
+3. **Set Up Environment Variables Create a .env file in the root directory**
+
 4. **Run the Application**
     ```bash
     npm run dev

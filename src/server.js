@@ -6,7 +6,10 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 const smsRoutes = require('./routes/smsRoutes');
+const urlShortenRoutes = require('./routes/urlShortenRoutes');
+
 app.use('/sms', smsRoutes);
+app.use('/', urlShortenRoutes);
 
 app.use((err, req, res, next) => {
   console.error(err.stack);

@@ -39,6 +39,44 @@ class SmsService {
     }
   }
 
+  async updateMessageId(sId, messageId) {
+    const query = `
+      UPDATE messages
+      SET message_id = $1
+      WHERE sid = $2
+    `;
+    const values = [messageId, sId];
+
+    try {
+      await db.query(query, values);
+      console.log('Message ID updated successfully');
+    } catch (error) {
+      console.error('Error updating message ID:', error.stack);
+      throw new Error('Failed to update message ID');
+    }
+  }
+
+  async getRecipientNumberByMessageId(messageId) {
+    const query = `
+      SELECT from_number
+      FROM messages
+      WHERE message_id = $1
+    `;
+    const values = [messageId];
+
+    try {
+      const result = await db.query(query, values);
+      if (result.rows.length > 0) {
+        return result.rows[0].from_number;
+      } else {
+        throw new Error('No recipient found for the given message ID');
+      }
+    } catch (error) {
+      console.error('Error fetching recipient number:', error.stack);
+      throw new Error('Failed to fetch recipient number');
+    }
+  }
+
   async getAllMessages() {
     try {
       const result = await db.query('SELECT * FROM messages ORDER BY created_at DESC');

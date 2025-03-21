@@ -1,4 +1,6 @@
 const smsService = require('../services/smsService');
+const markoService = require('../services/markoService');
+const urlShortenerService = require('../services/urlShortenerService');
 
 class SmsController {
   async sendSms(req, res) {
@@ -25,13 +27,17 @@ class SmsController {
 
   async receiveSms(req, res) {
     const { From, To, Body, MessageSid } = req.body;
+    console.log('Received SMS:', req.body);
 
     try {
       await smsService.saveReceivedSms(From, To, Body, MessageSid);
-      
-      // Respond to Twilio with TwiML
-      res.set('Content-Type', 'text/xml');
-      res.send('<Response></Response>');
+      const marko = new markoService(Body)
+      const messageId = await marko.sendRequest()
+      await smsService.updateMessageId(MessageSid, messageId);
+
+      res.status(200).json({
+        success: true
+      });
     } catch (error) {
       console.error('Error in receiveSms controller:', error);
       res.status(500).send('Error processing message');
@@ -47,6 +53,38 @@ class SmsController {
       res.status(500).json({
         error: error.message
       });
+    }
+  }
+
+  async webhook(req, res) {
+    try {
+      const {event, data, messageId, error} = req.body;
+      console.log('Webhook data:', req.body);
+
+      const EVENTS = {
+        SESSION_IN_PROGRESS: 'session:in_progress',
+      };
+
+      if (event === EVENTS.SESSION_IN_PROGRESS && data?.presigned_image_urls?.length > 0) {
+        const fileUrl = data.presigned_image_urls[0];
+        console.log('File URL:', fileUrl);
+
+        const shortUrl = await urlShortenerService.shortenUrl(fileUrl);
+        const modifiedShortUrl = shortUrl.replace('http://', ' ');
+        const shortUrlWithoutDot = modifiedShortUrl.replaceAll('.', '(.)');
+        console.log('Short URL:', shortUrlWithoutDot);
+
+        const recipientNumber = await smsService.getRecipientNumberByMessageId(messageId);
+
+        const result = await smsService.sendSms(recipientNumber, shortUrlWithoutDot);
+        console.log('SMS sent:', result);
+        res.json(result);
+      }
+    } catch (error) {
+      console.log("Error in webhook controller:", error);
+      res.status(500).json({
+        error: error.message
+      })
     }
   }
 }
