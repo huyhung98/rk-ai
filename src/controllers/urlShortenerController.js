@@ -9,6 +9,7 @@ class UrlShortenerController {
       res.redirect(OriginalUrl);
     } catch (error) {
       console.error('Error in redirectToOriginalUrl controller:', error);
+      // TODO: use error handling middleware in server.js instead
       res.status(404).send('URL not found');
     }
   }

@@ -11,10 +11,10 @@ const urlShortenRoutes = require('./routes/urlShortenRoutes');
 app.use('/sms', smsRoutes);
 app.use('/', urlShortenRoutes);
 
+// TODO: use this as the single error handler middleware
 app.use((err, _req, res, _next) => {
   console.error(err.stack);
   res.status(500).json({
-    success: false,
     error: 'Internal server error'
   });
 });

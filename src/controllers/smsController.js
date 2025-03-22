@@ -8,34 +8,42 @@ const SESSION_EVENTS = {
   IN_PROGRESS: 'session:in_progress',
   COMPLETED: 'session:completed',
   ERROR: 'session:error'
-};
+}
 
 class SmsController {
+  handleResponseError(res, error, fallbackErrorMessage = 'Error', statusCode = 500) {
+    console.error(`${fallbackErrorMessage}: `, error)
+
+    let errorMessage = fallbackErrorMessage
+    if (error.message) {
+      errorMessage = error.message
+    }
+
+    res.status(statusCode).json({
+      error: errorMessage
+    })
+  }
+
   async sendSms(req, res) {
     const { to, body } = req.body;
 
-    if (!to || !body) {
-      return res.status(400).json({
-        success: false,
-        error: 'Missing required fields: to and body'
-      });
-    }
+    [to, body].forEach(field => {
+      if (!field) {
+        this.handleResponseError(res, new Error(`Missing required field: ${field}`), null, 400);
+      }
+    })
 
     try {
       const result = await smsService.sendSms(to, body);
       res.json(result);
     } catch (error) {
-      console.error('Error in sendSms controller:', error);
-      res.status(500).json({
-        success: false,
-        error: error.message
-      });
+      this.handleResponseError(res, error, 'Error sending SMS');
     }
   }
 
   async receiveSms(req, res) {
     const { From, To, Body, MessageSid } = req.body;
-    console.log('Received SMS:', req.body);
+    console.log('Received SMS Body:', req.body);
 
     try {
       await smsService.saveReceivedSms(From, To, Body, MessageSid);
@@ -50,8 +58,7 @@ class SmsController {
         success: true
       });
     } catch (error) {
-      console.error('Error in receiveSms controller:', error);
-      res.status(500).send('Error processing message');
+      this.handleResponseError(res, error, 'Error receiving SMS');
     }
   }
 
@@ -60,10 +67,7 @@ class SmsController {
       const messages = await smsService.getAllMessages();
       res.json(messages);
     } catch (error) {
-      console.error('Error in getMessages controller:', error);
-      res.status(500).json({
-        error: error.message
-      });
+      this.handleResponseError(res, error, 'Error getting messages');
     }
   }
 
@@ -77,21 +81,21 @@ class SmsController {
         console.log('File URL:', fileUrl);
 
         const shortUrl = await urlShortenerService.shortenUrl(fileUrl);
-        const modifiedShortUrl = shortUrl.replace('http://', ' ');
-        const shortUrlWithoutDot = modifiedShortUrl.replaceAll('.', '(.)');
-        console.log('Short URL:', shortUrlWithoutDot);
+        console.log('Original short URL:', shortUrl);
+
+        // Modify shortUrl so that it can be sent to a Vietnamese phone number
+        // TODO: Only send modified short URL if the recipient is a Vietnamese phone number
+        const modifiedShortUrl = shortUrl.replace('http://', ' ').replaceAll('.', '(.)')
+        console.log('Modified short URL:', modifiedShortUrl);
 
         const recipientNumber = await smsService.getRecipientNumberByMessageId(messageId);
 
-        const result = await smsService.sendSms(recipientNumber, shortUrlWithoutDot);
+        const result = await smsService.sendSms(recipientNumber, modifiedShortUrl);
         console.log('SMS sent:', result);
         res.json(result);
       }
     } catch (error) {
-      console.log("Error in webhook controller:", error);
-      res.status(500).json({
-        error: error.message
-      })
+      this.handleResponseError(res, error, 'Error in receiving data from marko_server')
     }
   }
 }
