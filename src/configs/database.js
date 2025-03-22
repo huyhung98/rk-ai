@@ -47,7 +47,8 @@ async function createTableIfNotExists() {
       await pool.query(createMessagesTableQuery);
       console.log('Table "messages" created successfully');
     } else {
-      console.log('Table "messages" already exists');
+      // NOTE: only enable this log for debugging
+      // console.log('Table "messages" already exists');
     }
 
     if (!existingTables.includes('shortened_urls')) {
@@ -62,7 +63,8 @@ async function createTableIfNotExists() {
       await pool.query(createShortenedUrlsTableQuery);
       console.log('Table "shortened_urls" created successfully');
     } else {
-      console.log('Table "shortened_urls" already exists');
+      // NOTE: only enable this log for debugging
+      // console.log('Table "shortened_urls" already exists');
     }
   } catch (err) {
     console.error('Error creating tables:', err.stack);
