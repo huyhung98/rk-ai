@@ -11,7 +11,7 @@ const urlShortenRoutes = require('./routes/urlShortenRoutes');
 app.use('/sms', smsRoutes);
 app.use('/', urlShortenRoutes);
 
-app.use((err, req, res, next) => {
+app.use((err, _req, res, _next) => {
   console.error(err.stack);
   res.status(500).json({
     success: false,
