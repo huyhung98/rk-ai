@@ -2,6 +2,7 @@ const smsService = require('../services/smsService');
 const markoService = require('../services/markoService');
 const urlShortenerService = require('../services/urlShortenerService');
 const redisService = require('../services/redisService');
+const { isError, isString } = require('es-toolkit');
 
 // Session events found in mm_db/marko_server/conversation_handler.py
 const SESSION_EVENTS = {
@@ -11,20 +12,30 @@ const SESSION_EVENTS = {
 }
 
 class SmsController {
-  handleResponseError(res, error, fallbackErrorMessage = 'Error', statusCode = 500) {
-    console.error(`${fallbackErrorMessage}: `, error)
-
-    let errorMessage = fallbackErrorMessage
-    if (error.message) {
-      errorMessage = error.message
+  handleResponseError = (res, error, fallbackErrorMessage = 'Error', statusCode = 500) => {
+    if (!isError(error)) {
+      if (isString(error)) {
+        error = new Error(error);
+      } else {
+        error = new Error(fallbackErrorMessage);
+      }
     }
 
-    res.status(statusCode).json({
-      error: errorMessage
-    })
-  }
+    console.error(`${fallbackErrorMessage}: `, error);
 
-  async sendSms(req, res) {
+    let errorMessage = fallbackErrorMessage;
+    if (error?.message) {
+      errorMessage = error.message;
+    }
+
+    // This may cause error if it's not called in a catch block at the end of the function
+    // TODO: use error handling middleware in server.js instead
+    return res.status(statusCode).json({
+      error: errorMessage
+    });
+  };
+
+  sendSms = async (req, res) => {
     const { to, body } = req.body;
 
     [to, body].forEach(field => {
@@ -41,7 +52,7 @@ class SmsController {
     }
   }
 
-  async receiveSms(req, res) {
+  receiveSms = async (req, res) => {
     const { From, To, Body, MessageSid } = req.body;
     console.log('Received SMS Body:', req.body);
 
@@ -52,7 +63,7 @@ class SmsController {
       await smsService.updateMessageId(MessageSid, messageId);
 
       const finalChunkMessage = await redisService.getChannelMessage(channel)
-      console.log('Chunk message: ',  finalChunkMessage);
+      console.log('Chunk message: ', finalChunkMessage)
 
       res.status(200).json({
         success: true
@@ -62,7 +73,7 @@ class SmsController {
     }
   }
 
-  async getMessages(_req, res) {
+  getMessages = async (_req, res) => {
     try {
       const messages = await smsService.getAllMessages();
       res.json(messages);
@@ -71,9 +82,9 @@ class SmsController {
     }
   }
 
-  async webhook(req, res) {
+  webhook = async (req, res) => {
     try {
-      const {event, data, messageId, error} = req.body;
+      const { event, data, messageId, _error } = req.body
       console.log('Webhook data:', req.body);
 
       if (event === SESSION_EVENTS.IN_PROGRESS && data?.presigned_image_urls?.length > 0) {

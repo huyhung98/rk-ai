@@ -18,6 +18,7 @@
   "dependencies": {
     "axios": "^1.8.3",
     "dotenv": "^16.4.7",
+    "es-toolkit": "^1.33.0",
     "express": "^4.19.2",
     "pg": "^8.14.0",
     "redis": "^4.7.0",
