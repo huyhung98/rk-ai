@@ -1,119 +1,139 @@
-const redis = require('redis');
+const redis = require('redis')
 
-const redisClient = redis.createClient({
-    url: process.env.REDIS_URL || 'redis://localhost:6379'
-});
-
-const subscribers = new Map();
-
-class RedisService {
-    constructor() {
-        this.publisher = redisClient;
-        this.subscriber = null;
-        this.init();
-    }
-
-
-    async init() {
-        try {
-            if (!this.publisher.isOpen) {
-                await this.publisher.connect();
-                console.log('Connected to Redis');
-            }
-
-            if (!this.subscriber) {
-                this.subscriber = this.publisher.duplicate();
-                await this.subscriber.connect();
-            }
-
-        } catch (error) {
-            console.error('Redis connection error:', error);
-            throw error;
-        }
-    }
-
-    async subscribeToChannel(channelId, callback) {
-        const channel = `${channelId}`;
-
-        try {
-            await this.subscriber.subscribe(channel, (message) => {
-                try {
-                    const parsedMessage = JSON.parse(message);
-                    callback(null, parsedMessage);
-                } catch (error) {
-                    callback(error, null);
-                }
-            });
-
-            subscribers.set(channelId, callback);
-            console.log(`Subscribed to channel: ${channel}`);
-        } catch (error) {
-            console.error(`Error subscribing to ${channel}:`, error);
-            throw error;
-        }
-    }
-
-
-    async unsubscribeFromChannel(channelId) {
-        const channel = `${channelId}`;
-
-        try {
-            await this.subscriber.unsubscribe(channel);
-            subscribers.delete(channelId);
-            console.log(`Unsubscribed from channel: ${channel}`);
-        } catch (error) {
-            console.error(`Error unsubscribing from ${channel}:`, error);
-            throw error;
-        }
-    }
-
-    async publishToChannel(channelId, message) {
-        const channel = `${channelId}`;
-
-        try {
-            await this.publisher.publish(channel, JSON.stringify(message));
-            console.log(`Published message to ${channel}`);
-        } catch (error) {
-            console.error(`Error publishing to ${channel}:`, error);
-            throw error;
-        }
-    }
-
-
-    async getChannelMessage(channelId) {
-        return new Promise((resolve) => {
-            const callback = (error, message) => {
-                let fullMessage = '';
-                if (error) {
-                    console.error('Error parsing message:', error);
-                    return;
-                }
-
-                fullMessage += message.value;
-
-                if (message.done) {
-                    this.unsubscribeFromChannel(channelId);
-                    resolve(fullMessage.trim());
-                }
-            };
-
-            this.subscribeToChannel(channelId, callback);
-        });
-    }
-
-    async disconnect() {
-        try {
-            await this.subscriber.quit();
-            await this.publisher.quit();
-            subscribers.clear();
-            console.log('Disconnected from Redis');
-        } catch (error) {
-            console.error('Error disconnecting from Redis:', error);
-            throw error;
-        }
-    }
+// Find generating texts in marko_server/tools, each generator's tool_call_description
+const GENERATING_TEXTS = {
+  imageGenerator: "I'm generating an image for you ...",
+  videoGenerator: "I'm generating a video for you ...",
 }
 
-const redisService = new RedisService();
+const DEFAULT_TIMEOUT_MS = 600000
 
-module.exports = redisService;
+class RedisService {
+  constructor() {
+    this.subscriber = null
+    this.subscribers = new Map() // Track active subscriptions
+    this.init()
+  }
+
+  init = async () => {
+    try {
+      if (!this.subscriber) {
+        this.subscriber = redis.createClient({
+          url: process.env.REDIS_URL || 'redis://localhost:6379',
+        })
+        await this.subscriber.connect()
+        console.log(`Connected to Redis as a subscriber`)
+      }
+    } catch (err) {
+      console.error(`Error connecting to Redis:`, err)
+      throw err
+    }
+  }
+
+  subscribeToChannel = async (channel, callback) => {
+    try {
+      await this.subscriber.subscribe(channel, async (message) => {
+        try {
+          const parsedMessage = JSON.parse(message)
+          await callback(null, parsedMessage)
+        } catch (err) {
+          await callback(err, null)
+        }
+      })
+
+      this.subscribers.set(channel, callback)
+      console.log(`Subscribed to Redis channel ${channel}`)
+    } catch (err) {
+      console.error(`Error subscribing to Redis channel ${channel}:`, err)
+      throw err
+    }
+  }
+
+  unsubscribeFromChannel = async (channel) => {
+    try {
+      if (this.subscribers.has(channel)) {
+        await this.subscriber.unsubscribe(channel)
+        this.subscribers.delete(channel)
+        console.log(`Unsubscribed from channel: ${channel}`)
+      }
+    } catch (err) {
+      console.error(`Error unsubscribing from ${channel}:`, err)
+      throw err
+    }
+  }
+
+  getMergedMessageFromChannel = async (channel, timeoutMs = DEFAULT_TIMEOUT_MS) => {
+    return new Promise((resolve, reject) => {
+      let mergedMessage = ''
+      let timeout
+
+      const callback = async (error, message) => {
+        try {
+          if (error) {
+            console.error(`Error parsing chunk message from Redis channel ${channel}:`, error)
+            clearTimeout(timeout)
+            await this.unsubscribeFromChannel(channel)
+            return reject(error)
+          }
+
+          mergedMessage += message.value
+          // console.log(`Message chunk received from Redis channel ${channel}:`, message) // NOTE: Uncomment for debugging
+
+          if (message.done) {
+            console.log(`Merged message received from Redis channel ${channel}:`, mergedMessage)
+            clearTimeout(timeout)
+            await this.unsubscribeFromChannel(channel)
+            return resolve(mergedMessage)
+          }
+        } catch (err) {
+          console.error(`Error in callback for channel ${channel}:`, err)
+          clearTimeout(timeout)
+          return reject(err)
+        }
+      }
+
+      // NOTE: Timeout if no message is received after the specified time to prevent hanging indefinitely
+      // This is a safety measure to prevent the event loop from being blocked
+      // Increase the timeoutMs if you expect the operation to take longer
+      timeout = setTimeout(async () => {
+        const errorMessage = `Timeout waiting for messages from Redis channel ${channel}. You may need to increase the timeout OR there's actually an issue with Redis.`
+        console.error(errorMessage)
+        await this.unsubscribeFromChannel(channel)
+        reject(new Error(errorMessage))
+      }, timeoutMs)
+
+      this.subscribeToChannel(channel, callback).catch((err) => {
+        clearTimeout(timeout)
+        console.error(`Error subscribing to Redis channel ${channel}:`, err)
+        reject(err)
+      })
+    })
+  }
+
+  getTransformedMergedMessage = async (channel, timeoutMs = DEFAULT_TIMEOUT_MS) => {
+    const mergedMessage = await this.getMergedMessageFromChannel(channel, timeoutMs)
+    let transformedMergedMessage = mergedMessage
+
+    Object.values(GENERATING_TEXTS).forEach((generatingText) => {
+      transformedMergedMessage = transformedMergedMessage.replaceAll(generatingText, '')
+    })
+
+    return transformedMergedMessage.trim()
+  }
+
+  disconnect = async () => {
+    try {
+      for (const channel of this.subscribers.keys()) {
+        await this.unsubscribeFromChannel(channel)
+      }
+      await this.subscriber.quit()
+      this.subscribers.clear()
+      console.log('Disconnected from Redis')
+    } catch (err) {
+      console.error('Error disconnecting from Redis:', err)
+      throw err
+    }
+  }
+}
+
+module.exports = RedisService

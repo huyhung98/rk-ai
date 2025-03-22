@@ -1,8 +1,9 @@
-// src/routes/urlShortenRoutes.js
-const express = require('express');
-const router = express.Router();
-const urlShortenerController = require('../controllers/urlShortenerController');
+const express = require('express')
+const router = express.Router()
+const UrlShortenerController = require('../controllers/urlShortenerController')
 
-router.get('/:shortId', urlShortenerController.redirectToOriginalUrl);
+const urlShortenerController = new UrlShortenerController()
 
-module.exports = router;
+router.get('/:shortId', urlShortenerController.redirectToOriginalUrl)
+
+module.exports = router
