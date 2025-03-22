@@ -3,6 +3,13 @@ const markoService = require('../services/markoService');
 const urlShortenerService = require('../services/urlShortenerService');
 const redisService = require('../services/redisService');
 
+// Session events found in mm_db/marko_server/conversation_handler.py
+const SESSION_EVENTS = {
+  IN_PROGRESS: 'session:in_progress',
+  COMPLETED: 'session:completed',
+  ERROR: 'session:error'
+};
+
 class SmsController {
   async sendSms(req, res) {
     const { to, body } = req.body;
@@ -65,11 +72,7 @@ class SmsController {
       const {event, data, messageId, error} = req.body;
       console.log('Webhook data:', req.body);
 
-      const EVENTS = {
-        SESSION_IN_PROGRESS: 'session:in_progress',
-      };
-
-      if (event === EVENTS.SESSION_IN_PROGRESS && data?.presigned_image_urls?.length > 0) {
+      if (event === SESSION_EVENTS.IN_PROGRESS && data?.presigned_image_urls?.length > 0) {
         const fileUrl = data.presigned_image_urls[0];
         console.log('File URL:', fileUrl);
 
