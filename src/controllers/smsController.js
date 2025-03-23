@@ -59,12 +59,17 @@ class SmsController {
     try {
       await smsService.saveReceivedSms(From, To, Body, MessageSid);
       const marko = new markoService(Body)
-      const { channel, messageId } = await marko.sendRequest();
+      const { channel, messageId, sessionId } = await marko.sendRunRequest();
+      // TODO: create conversations table in the database
+      // TODO: create a new conversation in the database with the sessionId
+      // TODO: link the conversation to the message with the messageId
       await smsService.updateMessageId(MessageSid, messageId);
 
       const finalChunkMessage = await redisService.getChannelMessage(channel)
+      // TODO: why does finalChunkMessage not log anything?
       console.log('Chunk message: ', finalChunkMessage)
 
+      // TODO: remove all `success` keys in responses
       res.status(200).json({
         success: true
       });
