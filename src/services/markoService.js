@@ -1,47 +1,41 @@
-const axios = require('axios');
-const crypto = require('crypto');
-const uuidv4 = () => crypto.randomUUID();
+const axios = require('axios')
+const { randomUUID } = require('crypto')
+
+const SMS_INBOUND_WEBHOOK_URL = `${process.env.MARKO_POC_BASE_URL || ''}/sms/webhook`
 
 class MarkoService {
-  constructor(userInput) {
-    this.endpoint = process.env.NEX_ENDPOINT;
-    this.s3Folder = process.env.S3_FOLDER || '';
-    this.s3Bucket = process.env.S3_BUCKET || '';
-    this.s3Region = process.env.S3_REGION || '';
-    this.baseUrl = process.env.BASE_URL || '';
-    this.userInput = userInput;
-  }
+  generateSessionId = () => randomUUID()
 
-  async sendRunRequest() {
-    const sessionId = uuidv4();
-    const messageId = uuidv4();
-    const channel = `sessions:${sessionId}`;
+  generateChannel = sessionId => `sessions:${sessionId}`
 
+  async sendRunRequest(messageId, userInput) {
+    const sessionId = this.generateSessionId();
+    const channel = this.generateChannel(sessionId)
     const data = {
       channel,
       contexts: [],
       session_id: sessionId,
       message_id: messageId,
-      user_input: this.userInput,
+      user_input: userInput,
       storage: {
-        folder: this.s3Folder,
-        bucket: this.s3Bucket,
-        region: this.s3Region
+        folder: process.env.S3_FOLDER || '',
+        bucket: process.env.S3_BUCKET || '',
+        region: process.env.S3_REGION || ''
       },
       links: {
-        webhook: `${this.baseUrl}/sms/webhook`
+        webhook: SMS_INBOUND_WEBHOOK_URL
       }
-    };
+    }
 
     try {
-      await axios.post(process.env.NEX_ENDPOINT, data);
-
-      return { channel, messageId, sessionId };
-    } catch (error) {
-      console.error('Error sending request to NEX endpoint:', error);
-      throw new Error('Failed to send request to NEX endpoint');
+      await axios.post(`${process.env.MARKO_BASE_URL}/run`, data);
+    } catch (err) {
+      console.error(`Error sending run request to Marko:`, err)
+      throw err
     }
+
+    return channel
   }
 }
 
-module.exports = MarkoService;
+module.exports = MarkoService

@@ -1,8 +1,9 @@
-const smsService = require('../services/smsService');
-const markoService = require('../services/markoService');
-const urlShortenerService = require('../services/urlShortenerService');
-const redisService = require('../services/redisService');
-const { isError, isString } = require('es-toolkit');
+const SmsService = require('../services/smsService')
+const MarkoService = require('../services/markoService')
+const RedisService = require('../services/redisService')
+const ConversationService = require('../services/conversationService')
+const Conversation = require('../models/conversation')
+const { isArray } = require('es-toolkit/compat')
 
 // Session events found in mm_db/marko_server/conversation_handler.py
 const SESSION_EVENTS = {
@@ -12,108 +13,168 @@ const SESSION_EVENTS = {
 }
 
 class SmsController {
-  handleResponseError = (res, error, fallbackErrorMessage = 'Error', statusCode = 500) => {
-    if (!isError(error)) {
-      if (isString(error)) {
-        error = new Error(error);
-      } else {
-        error = new Error(fallbackErrorMessage);
-      }
+  receiveSmsMessage = async (req, res, next) => {
+    const { From, To, Body, MessageSid } = req.body
+
+    if (!From || !To || !Body || !MessageSid) {
+      const error = new Error('Missing at least one of the required fields: From, To, Body, MessageSid')
+      error.statusCode = 400
+      return next(error)
     }
 
-    console.error(`${fallbackErrorMessage}: `, error);
-
-    let errorMessage = fallbackErrorMessage;
-    if (error?.message) {
-      errorMessage = error.message;
-    }
-
-    // This may cause error if it's not called in a catch block at the end of the function
-    // TODO: use error handling middleware in server.js instead
-    return res.status(statusCode).json({
-      error: errorMessage
-    });
-  };
-
-  sendSms = async (req, res) => {
-    const { to, body } = req.body;
-
-    [to, body].forEach(field => {
-      if (!field) {
-        this.handleResponseError(res, new Error(`Missing required field: ${field}`), null, 400);
-      }
-    })
+    console.log('Received SMS Body:', req.body)
 
     try {
-      const result = await smsService.sendSms(to, body);
-      res.json(result);
-    } catch (error) {
-      this.handleResponseError(res, error, 'Error sending SMS');
-    }
-  }
+      // Save received SMS message to the database
+      const smsService = new SmsService()
+      const receivedSmsMessage = await smsService.saveReceivedSmsMessage(From, To, Body, MessageSid)
 
-  receiveSms = async (req, res) => {
-    const { From, To, Body, MessageSid } = req.body;
-    console.log('Received SMS Body:', req.body);
+      // Send the received SMS message to Marko /run endpoint
+      const markoService = new MarkoService()
+      const channel = await markoService.sendRunRequest(receivedSmsMessage._id, receivedSmsMessage.body)
 
-    try {
-      await smsService.saveReceivedSms(From, To, Body, MessageSid);
-      const marko = new markoService(Body)
-      const { channel, messageId, sessionId } = await marko.sendRunRequest();
-      // TODO: create conversations table in the database
-      // TODO: create a new conversation in the database with the sessionId
-      // TODO: link the conversation to the message with the messageId
-      await smsService.updateMessageId(MessageSid, messageId);
+      // NOTE: this is not performance friendly and may cause timeout response because it will block the event loop. If that's the case, figure out a way to make this non-blocking.
+      // Get the merged message from the Redis channel
+      const redisService = new RedisService()
+      let mergedMessage
+      try {
+        mergedMessage = await redisService.getMergedMessageFromChannel(channel)
+        console.log('Merged message: ', mergedMessage)
+      } catch (err) {
+        console.error(`Error retrieving merged message from Redis channel ${channel}:`, err)
+        return next(err)
+      }
 
-      const finalChunkMessage = await redisService.getChannelMessage(channel)
-      // TODO: why does finalChunkMessage not log anything?
-      console.log('Chunk message: ', finalChunkMessage)
+      // Send the merged message back to the user
+      await smsService.sendSmsMessage(From, mergedMessage)
 
-      // TODO: remove all `success` keys in responses
       res.status(200).json({
-        success: true
-      });
-    } catch (error) {
-      this.handleResponseError(res, error, 'Error receiving SMS');
+        message: 'Received SMS message successfully'
+      })
+    } catch (err) {
+      console.error('Error receiving SMS message:', err)
+      next(err)
     }
   }
 
-  getMessages = async (_req, res) => {
-    try {
-      const messages = await smsService.getAllMessages();
-      res.json(messages);
-    } catch (error) {
-      this.handleResponseError(res, error, 'Error getting messages');
-    }
-  }
-
-  webhook = async (req, res) => {
+  smsMessageInboundWebhook = async (req, res, next) => {
     try {
       const { event, data, messageId, _error } = req.body
-      console.log('Webhook data:', req.body);
+      console.log('SMS message inbound webhook body:', req.body)
 
-      if (event === SESSION_EVENTS.IN_PROGRESS && data?.presigned_image_urls?.length > 0) {
-        const fileUrl = data.presigned_image_urls[0];
-        console.log('File URL:', fileUrl);
-
-        const shortUrl = await urlShortenerService.shortenUrl(fileUrl);
-        console.log('Original short URL:', shortUrl);
-
-        // Modify shortUrl so that it can be sent to a Vietnamese phone number
-        // TODO: Only send modified short URL if the recipient is a Vietnamese phone number
-        const modifiedShortUrl = shortUrl.replace('http://', ' ').replaceAll('.', '(.)')
-        console.log('Modified short URL:', modifiedShortUrl);
-
-        const recipientNumber = await smsService.getRecipientNumberByMessageId(messageId);
-
-        const result = await smsService.sendSms(recipientNumber, modifiedShortUrl);
-        console.log('SMS sent:', result);
-        res.json(result);
+      if (!event || !data || !messageId) {
+        const error = new Error('Missing at least one of required fields: event, data, messageId')
+        error.statusCode = 400
+        return next(error)
       }
-    } catch (error) {
-      this.handleResponseError(res, error, 'Error in receiving data from marko_server')
+
+      if (!isArray(data.presigned_image_urls)) {
+        const error = new Error('Invalid presigned_image_urls')
+        error.statusCode = 400
+        return next(error)
+      } else if (data.presigned_image_urls.length === 0) {
+        const error = new Error('No presigned_image_urls found')
+        error.statusCode = 400
+        return next(error)
+      }
+
+      switch (event) {
+        case SESSION_EVENTS.IN_PROGRESS:
+          const smsService = new SmsService()
+
+          try {
+            await Promise.all(
+              data.presigned_image_urls.map((presignedImageUrl) =>
+                smsService.sendPresignedImageUrl(presignedImageUrl, messageId)
+              )
+            );
+
+            res.json({
+              message: 'Successfully sent all presigned image URLs',
+            })
+          } catch (err) {
+            console.error('Error sending presigned image URLs:', err)
+            return next(err)
+          }
+          break
+        case SESSION_EVENTS.COMPLETED:
+          console.log('Session completed - no additional handling implemented yet')
+          break
+        case SESSION_EVENTS.ERROR:
+          console.log('Session error - no additional handling implemented yet')
+          break
+        default:
+          const error = new Error('Invalid event')
+          error.statusCode = 400
+          return next(error)
+      }
+    } catch (err) {
+      next(err)
+    }
+  }
+
+  sendSmsMessage = async (req, res, next) => {
+    const { to: toNumber, body: messageBody } = req.body
+
+    if (!toNumber || !messageBody) {
+      const error = new Error('Missing at least one of required fields: to, body')
+      error.statusCode = 422
+      throw error
+    }
+
+    try {
+      const smsService = new SmsService()
+      await smsService.sendSmsMessage(toNumber, messageBody)
+      res.json({
+        message: `Successfully sent ${messageBody} to ${toNumber}`
+      })
+    } catch (err) {
+      next(err)
+    }
+  }
+
+  getConversations = async (_req, res, next) => {
+    try {
+      const conversations = await Conversation.find()
+
+      res.json({
+        data: conversations
+      })
+    } catch (err) {
+      next(err)
+    }
+  }
+
+  getConversationByPhoneNumber = async (req, res, next) => {
+    const { phoneNumber } = req.params
+
+    try {
+      const conversationService = new ConversationService()
+      const conversation = await conversationService.getConversationByPhoneNumber(phoneNumber);
+
+      res.json({
+        data: conversation
+      })
+    } catch (err) {
+      next(err)
+    }
+  }
+
+  getSmsMessagesByPhoneNumber = async (req, res, next) => {
+    const { phoneNumber } = req.params
+
+    try {
+      const conversationService = new ConversationService()
+      const conversation = await conversationService.getConversationByPhoneNumber(phoneNumber);
+      const smsMessages = conversation.messages.filter(message => message.sid)
+
+      res.json({
+        data: smsMessages
+      })
+    } catch (err) {
+      next(err)
     }
   }
 }
 
-module.exports = new SmsController();
+module.exports = SmsController

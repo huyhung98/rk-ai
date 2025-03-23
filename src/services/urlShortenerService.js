@@ -1,46 +1,46 @@
-const db = require('../configs/database');
-const crypto = require('crypto');
-const uuidv4 = () => crypto.randomUUID();
+const { randomUUID } = require('crypto')
+const ShortenedUrl = require('../models/shortened_url')
 
 class UrlShortenerService {
-  async shortenUrl(longUrl) {
-    const shortId = uuidv4().slice(0, 8);
-    const query = `
-      INSERT INTO shortened_urls (short_id, original_url)
-      VALUES ($1, $2)
-      RETURNING short_id
-    `;
-    const values = [shortId, longUrl];
+  generateShortUrl = async (shortId) => `${process.env.MARKO_POC_BASE_URL}/${shortId}`
 
+  shortenUrl = async (originalUrl) => {
     try {
-      const result = await db.query(query, values);
-      return `${process.env.BASE_URL}/${result.rows[0].short_id}`;
-    } catch (error) {
-      console.error('Error shortening URL:', error);
-      throw new Error('Failed to shorten URL');
+      const existingShortenedUrl = await ShortenedUrl.findOne({ originalUrl })
+      if (existingShortenedUrl) {
+        return this.generateShortUrl(existingShortenedUrl.shortId)
+      }
+
+      const shortId = randomUUID().slice(0, 8)
+      const shortenedUrl = new ShortenedUrl({
+        shortId,
+        originalUrl,
+      })
+      await shortenedUrl.save()
+
+      return this.generateShortUrl(shortId)
+    } catch (err) {
+      console.error('Error shortening URL:', err)
+      throw err
     }
   }
 
-  async getOriginalUrl(shortId) {
-    const query = `
-      SELECT original_url
-      FROM shortened_urls
-      WHERE short_id = $1
-    `;
-    const values = [shortId];
-
+  getOriginalUrl = async (shortId) => {
     try {
-      const result = await db.query(query, values);
-      if (result.rowCount > 0) {
-        return result.rows[0].original_url;
-      } else {
-        throw new Error('No URL found for the given short ID');
+      const shortenedUrl = await ShortenedUrl.findOne({ shortId })
+
+      if (!shortenedUrl) {
+        const error = new Error('Shortened URL not found')
+        error.statusCode = 404
+        throw error
       }
-    } catch (error) {
-      console.error('Error fetching original URL:', error);
-      throw new Error('Failed to fetch original URL');
+
+      return shortenedUrl.originalUrl
+    } catch (err) {
+      console.error(`Error retrieving original URL for shortId ${shortId}:`, err)
+      throw err
     }
   }
 }
 
-module.exports = new UrlShortenerService();
+module.exports = UrlShortenerService

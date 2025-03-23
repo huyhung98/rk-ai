@@ -1,18 +1,25 @@
-const urlShortenerService = require('../services/urlShortenerService');
+const UrlShortenerService = require('../services/urlShortenerService')
+const urlShortenerService = new UrlShortenerService() // Singleton instance
 
 class UrlShortenerController {
-  async redirectToOriginalUrl(req, res) {
-    const { shortId } = req.params;
+  async redirectToOriginalUrl(req, res, next) {
+    const { shortId } = req.params
+
+    if (!shortId) {
+      const error = new Error('Missing required parameter: shortId')
+      error.statusCode = 400
+      return next(error)
+    }
 
     try {
-      const OriginalUrl = await urlShortenerService.getOriginalUrl(shortId);
-      res.redirect(OriginalUrl);
-    } catch (error) {
-      console.error('Error in redirectToOriginalUrl controller:', error);
-      // TODO: use error handling middleware in server.js instead
-      res.status(404).send('URL not found');
+      const originalUrl = await urlShortenerService.getOriginalUrl(shortId)
+
+      res.redirect(originalUrl)
+    } catch (err) {
+      console.error('Error retrieving the original URL:', err)
+      next(err)
     }
   }
 }
 
-module.exports = new UrlShortenerController();
+module.exports = UrlShortenerController
