@@ -20,20 +20,15 @@ class ConversationService {
   }
 
   async getConversationByMessageId(messageId) {
-    if (!messageId) {
-      const error = new Error('Missing required field: messageId')
-      error.statusCode = 422
-      throw error
-    }
-
     const conversation = await Conversation.findOne({ 'messages._id': messageId })
-    console.log('Conversation by messageId:', conversation)
 
     if (!conversation) {
       const error = new Error(`Conversation not found for messageId: ${messageId}`)
       error.statusCode = 404
       throw error
     }
+
+    console.log(`Found a conversation with _id ${conversation._id} by messageId ${messageId}.`)
 
     return conversation
   }
@@ -47,23 +42,23 @@ class ConversationService {
       let conversation = await Conversation.findOne({ phoneNumber })
 
       if (conversation) {
-        console.log('Found conversation:', conversation)
+        console.log(`Found a conversation with _id ${conversation._id} by phoneNumber ${phoneNumber}.`)
 
         conversation.messages.push(message)
+        console.log(`Adding message to it...`)
         await conversation.save()
-
-        console.log('Pushed message to the found conversation')
       } else {
-        console.log('Conversation not found. Creating a new conversation with a message')
+        console.log('Conversation not found. Creating a new conversation...')
 
         const newConversation = new Conversation({
           phoneNumber,
           messages: [message],
         })
+        console.log('Adding message to it...')
         conversation = await newConversation.save()
-
-        console.log('Created a conversation with a message')
       }
+
+      console.log(`Added message to the conversation with _id ${conversation._id}`)
 
       return conversation
     } catch (err) {

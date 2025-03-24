@@ -125,7 +125,7 @@ describe('SMS Routes', () => {
     })
     expect(typeof markoServerResponseMessage.body).toBe('string')
     expect(markoServerResponseMessage.body.length).toBeGreaterThan(0)
-  }, 120000)
+  }, 600000)
 
   const requiredFields = ['From', 'To', 'Body', 'MessageSid']
 

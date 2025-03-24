@@ -47,7 +47,6 @@ class SmsController {
       let mergedMessage
       try {
         mergedMessage = await redisService.getMergedMessageFromChannel(channel)
-        console.log('Merged message: ', mergedMessage)
       } catch (err) {
         console.error(`Error retrieving merged message from Redis channel ${channel}:`, err)
         return next(err)

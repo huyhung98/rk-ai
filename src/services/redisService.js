@@ -54,7 +54,7 @@ class RedisService {
     }
   }
 
-  getMergedMessageFromChannel = async (channel, timeoutMs = 120000) => {
+  getMergedMessageFromChannel = async (channel, timeoutMs = 600000) => {
     return new Promise((resolve, reject) => {
       let mergedMessage = ''
       let timeout
@@ -69,9 +69,10 @@ class RedisService {
           }
 
           mergedMessage += message.value
-          // console.log(`Message chunk from Redis channel ${channel}:`, message) // NOTE: Uncomment for debugging
+          // console.log(`Message chunk received from Redis channel ${channel}:`, message) // NOTE: Uncomment for debugging
 
           if (message.done) {
+            console.log(`Merged message received from Redis channel ${channel}:`, mergedMessage)
             clearTimeout(timeout)
             await this.unsubscribeFromChannel(channel)
             return resolve(mergedMessage.trim())
