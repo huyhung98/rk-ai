@@ -4,6 +4,7 @@ const RedisService = require('../services/redisService')
 const ConversationService = require('../services/conversationService')
 const Conversation = require('../models/conversation')
 const { isArray } = require('es-toolkit/compat')
+const { SMS_MESSAGE_STATUSES, SMS_MESSAGE_DIRECTIONS } = require('../models/sms_message')
 
 // Session events found in mm_db/marko_server/conversation_handler.py
 const SESSION_EVENTS = {
@@ -27,11 +28,18 @@ class SmsController {
     try {
       // Save received SMS message to the database
       const smsService = new SmsService()
-      const receivedSmsMessage = await smsService.saveReceivedSmsMessage(From, To, Body, MessageSid)
+      const { conversation, smsMessage: receivedSmsMessage } = await smsService.saveSmsMessage(
+        From,
+        To,
+        Body,
+        SMS_MESSAGE_STATUSES.RECEIVED,
+        SMS_MESSAGE_DIRECTIONS.INBOUND,
+        MessageSid
+      )
 
       // Send the received SMS message to Marko /run endpoint
       const markoService = new MarkoService()
-      const channel = await markoService.sendRunRequest(receivedSmsMessage._id, receivedSmsMessage.body)
+      const channel = await markoService.sendRunRequest(conversation._id, receivedSmsMessage._id, receivedSmsMessage.body)
 
       // NOTE: this is not performance friendly and may cause timeout response because it will block the event loop. If that's the case, figure out a way to make this non-blocking.
       // Get the merged message from the Redis channel
@@ -45,8 +53,11 @@ class SmsController {
         return next(err)
       }
 
-      // Send the merged message back to the user
-      await smsService.sendSmsMessage(From, mergedMessage)
+      // TODO: remove generating text from the merged message
+      const messageToSend = mergedMessage
+
+      // Send the message back to the user
+      await smsService.sendSmsMessage(From, messageToSend)
 
       res.status(200).json({
         message: 'Received SMS message successfully'

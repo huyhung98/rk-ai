@@ -46,7 +46,7 @@ const smsMessageSchema = new Schema({
   },
   sid: { // the SID of the message from Twilio
     type: String,
-    required: false, // Not required for sent messages
+    required: true,
   },
 })
 

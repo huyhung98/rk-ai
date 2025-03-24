@@ -10,47 +10,24 @@ const client = twilio(
 )
 
 class SmsService {
-  saveReceivedSmsMessage = async (fromNumber, toNumber, body, sid) => {
+  saveSmsMessage = async (fromNumber, toNumber, body, status, direction, sid) => {
     try {
-      const receivedSmsMessage = new SmsMessage({
+      const smsMessage = new SmsMessage({
         fromNumber,
         toNumber,
         body,
-        status: SMS_MESSAGE_STATUSES.RECEIVED,
-        direction: SMS_MESSAGE_DIRECTIONS.INBOUND,
+        status,
+        direction,
         sid,
       })
 
       const conversationService = new ConversationService()
-      await conversationService.addMessageToConversation(fromNumber, receivedSmsMessage.toObject())
+      const phoneNumber = direction === SMS_MESSAGE_DIRECTIONS.INBOUND ? fromNumber : toNumber
+      const conversation = await conversationService.addMessageToConversation(phoneNumber, smsMessage.toObject())
 
-      return receivedSmsMessage
+      return { conversation, smsMessage }
     } catch (err) {
-      console.error(`Error saving received SMS message:`, err)
-      throw err
-    }
-  }
-
-  saveSentSmsMessage = async (fromNumber, toNumber, body) => {
-    if (!fromNumber || !toNumber || !body) {
-      throw new Error('Missing at least one of required fields: fromNumber, toNumber, or body')
-    }
-
-    try {
-      const sentSmsMessage = new SmsMessage({
-        fromNumber,
-        toNumber,
-        body,
-        status: SMS_MESSAGE_STATUSES.SENT,
-        direction: SMS_MESSAGE_DIRECTIONS.OUTBOUND,
-      })
-
-      const conversationService = new ConversationService()
-      await conversationService.addMessageToConversation(toNumber, sentSmsMessage.toObject())
-
-      return sentSmsMessage
-    } catch (err) {
-      console.error('Error saving sent SMS message:', err)
+      console.error(`Error saving SMS message:`, err)
       throw err
     }
   }
@@ -107,9 +84,17 @@ class SmsService {
         to: toNumber
       })
 
-      // TODO: also save sid to the message
-      console.log('Sent SMS message:', JSON.stringify(sentMessage, null, 2))
-      await this.saveSentSmsMessage(sentMessage.from, sentMessage.to, sentMessage.body)
+      console.log(`Sent SMS message to ${toNumber}:`, JSON.stringify(sentMessage, null, 2))
+      const { conversation, smsMessage: sentSmsMessage } = await this.saveSmsMessage(
+        sentMessage.from,
+        sentMessage.to,
+        sentMessage.body,
+        SMS_MESSAGE_STATUSES.SENT,
+        SMS_MESSAGE_DIRECTIONS.OUTBOUND,
+        sentMessage.sid
+      )
+
+      return { conversation, sentSmsMessage }
     } catch (err) {
       console.log(`Failed to send ${messageBody} to ${toNumber}:`, err)
       throw err

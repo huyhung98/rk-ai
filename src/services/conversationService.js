@@ -45,19 +45,24 @@ class ConversationService {
 
     try {
       let conversation = await Conversation.findOne({ phoneNumber })
-      console.log('Found conversation:', conversation)
 
       if (conversation) {
+        console.log('Found conversation:', conversation)
+
         conversation.messages.push(message)
         await conversation.save()
+
         console.log('Pushed message to the found conversation')
       } else {
+        console.log('Conversation not found. Creating a new conversation with a message')
+
         const newConversation = new Conversation({
           phoneNumber,
           messages: [message],
         })
         conversation = await newConversation.save()
-        console.log('Create a conversation with the first message')
+
+        console.log('Created a conversation with a message')
       }
 
       return conversation

@@ -4,26 +4,23 @@ const { randomUUID } = require('crypto')
 const SMS_INBOUND_WEBHOOK_URL = `${process.env.MARKO_POC_BASE_URL || ''}/sms/webhook`
 
 class MarkoService {
-  generateSessionId = () => randomUUID()
-
   generateChannel = sessionId => `sessions:${sessionId}`
 
-  async sendRunRequest(messageId, userInput) {
-    const sessionId = this.generateSessionId();
+  async sendRunRequest(sessionId, messageId, userInput) {
     const channel = this.generateChannel(sessionId)
     const data = {
-      channel,
+      channel, // a Redis channel to subscribe to for the chunked responses
       contexts: [],
-      session_id: sessionId,
-      message_id: messageId,
-      user_input: userInput,
-      storage: {
+      session_id: sessionId, // session_id acts as conversation._id and is used to find a conversation from the conversation MongoDB collections on marko_server
+      message_id: messageId, // each message has a unique message_id, saved in the conversation.messages array
+      user_input: userInput, // the actual prompt OR a message before user providing the actual prompt
+      storage: { // S3 storage configuration for saving generated file(s)
         folder: process.env.S3_FOLDER || '',
         bucket: process.env.S3_BUCKET || '',
         region: process.env.S3_REGION || ''
       },
       links: {
-        webhook: SMS_INBOUND_WEBHOOK_URL
+        webhook: SMS_INBOUND_WEBHOOK_URL // the webhook URL to send generated file(s) to
       }
     }
 

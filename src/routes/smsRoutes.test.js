@@ -66,11 +66,15 @@ describe('SMS Routes', () => {
     conversations = await Conversation.find()
     expect(conversations.length).toBe(1)
 
-    // The conversation has 3 messages:
-    // - the received message
-    // - the sent messages: response from the faster operation is pushed first
-    //   - the marko_server response message (merged message from subscribing to the Redis channel)
-    //   - the shortened URL message (request data from marko_server to the webhook URL)
+    // If it's a new phone number, then the conversation has 3 messages:
+    //   - the received message
+    //   - the sent messages: (response from the faster operation is pushed first)
+    //     - the marko_server response message (merged message from subscribing to the Redis channel)
+    //     - TODO: the marko_server response message (merged message (with generating text removed) from subscribing to the Redis channel)
+    //     - the shortened URL message (request data from marko_server to the webhook URL)
+    // TODO: Else
+    //   If the received message is a normal message, then ?
+    //   Else (the received message is a prompt message), then ?
     const conversation = conversations[0]
     expect(conversation.messages.length).toBe(3)
 
@@ -96,7 +100,7 @@ describe('SMS Routes', () => {
     // - flipped status
     // - flipped direction
     // - body containing the shortened URL
-    // TODO: handle sending the shortened URL message to a US number
+    // TODO: handle sending the shortened URL message to a US number. Currently, this test code only works for sending to a Vietnamese number
     const shortenedUrlMessage = sentMessages.find(message => message.body.includes('(.)')) // Matches a shortened URL message containing (.) for Vietnamese toNumber
     expect(shortenedUrlMessage).toMatchObject({
       fromNumber: payload.To,
@@ -111,6 +115,7 @@ describe('SMS Routes', () => {
     // - flipped status
     // - flipped direction
     // - body containing the merged message from the Redis channel
+    // - TODO: body containing the merged message (with generating text removed) from the Redis channel
     const markoServerResponseMessage = sentMessages.find(message => message !== shortenedUrlMessage)
     expect(markoServerResponseMessage).toMatchObject({
       fromNumber: payload.To,

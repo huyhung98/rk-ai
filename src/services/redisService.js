@@ -69,6 +69,7 @@ class RedisService {
           }
 
           mergedMessage += message.value
+          // console.log(`Message chunk from Redis channel ${channel}:`, message) // NOTE: Uncomment for debugging
 
           if (message.done) {
             clearTimeout(timeout)
