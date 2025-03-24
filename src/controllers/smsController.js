@@ -44,19 +44,16 @@ class SmsController {
       // NOTE: this is not performance friendly and may cause timeout response because it will block the event loop. If that's the case, figure out a way to make this non-blocking.
       // Get the merged message from the Redis channel
       const redisService = new RedisService()
-      let mergedMessage
+      let transformedMergedMessage
       try {
-        mergedMessage = await redisService.getMergedMessageFromChannel(channel)
+        transformedMergedMessage = await redisService.getTransformedMergedMessage(channel)
       } catch (err) {
         console.error(`Error retrieving merged message from Redis channel ${channel}:`, err)
         return next(err)
       }
 
-      // TODO: remove generating text from the merged message
-      const messageToSend = mergedMessage
-
       // Send the message back to the user
-      await smsService.sendSmsMessage(From, messageToSend)
+      await smsService.sendSmsMessage(From, transformedMergedMessage)
 
       res.status(200).json({
         message: 'Received SMS message successfully'

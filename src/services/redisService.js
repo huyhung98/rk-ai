@@ -1,5 +1,13 @@
 const redis = require('redis')
 
+// Find generating texts in marko_server/tools, each generator's tool_call_description
+const GENERATING_TEXTS = {
+  imageGenerator: "I'm generating an image for you ...",
+  videoGenerator: "I'm generating a video for you ...",
+}
+
+const DEFAULT_TIMEOUT_MS = 600000
+
 class RedisService {
   constructor() {
     this.subscriber = null
@@ -54,7 +62,7 @@ class RedisService {
     }
   }
 
-  getMergedMessageFromChannel = async (channel, timeoutMs = 600000) => {
+  getMergedMessageFromChannel = async (channel, timeoutMs = DEFAULT_TIMEOUT_MS) => {
     return new Promise((resolve, reject) => {
       let mergedMessage = ''
       let timeout
@@ -75,7 +83,7 @@ class RedisService {
             console.log(`Merged message received from Redis channel ${channel}:`, mergedMessage)
             clearTimeout(timeout)
             await this.unsubscribeFromChannel(channel)
-            return resolve(mergedMessage.trim())
+            return resolve(mergedMessage)
           }
         } catch (err) {
           console.error(`Error in callback for channel ${channel}:`, err)
@@ -88,9 +96,10 @@ class RedisService {
       // This is a safety measure to prevent the event loop from being blocked
       // Increase the timeoutMs if you expect the operation to take longer
       timeout = setTimeout(async () => {
-        console.error(`Timeout waiting for messages from Redis channel ${channel}`)
+        const errorMessage = `Timeout waiting for messages from Redis channel ${channel}. You may need to increase the timeout OR there's actually an issue with Redis.`
+        console.error(errorMessage)
         await this.unsubscribeFromChannel(channel)
-        reject(new Error(`Timeout waiting for messages from Redis channel ${channel}`))
+        reject(new Error(errorMessage))
       }, timeoutMs)
 
       this.subscribeToChannel(channel, callback).catch((err) => {
@@ -99,6 +108,17 @@ class RedisService {
         reject(err)
       })
     })
+  }
+
+  getTransformedMergedMessage = async (channel, timeoutMs = DEFAULT_TIMEOUT_MS) => {
+    const mergedMessage = await this.getMergedMessageFromChannel(channel, timeoutMs)
+    let transformedMergedMessage = mergedMessage
+
+    Object.values(GENERATING_TEXTS).forEach((generatingText) => {
+      transformedMergedMessage = transformedMergedMessage.replaceAll(generatingText, '')
+    })
+
+    return transformedMergedMessage.trim()
   }
 
   disconnect = async () => {
