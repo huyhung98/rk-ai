@@ -1,39 +1,36 @@
 # RK-AI Integrate APP
 
-This project is a Node.js application built with Express.js that integrates Twilio for sending and receiving SMS messages, combined with sending prompts to Marko AI to generate and return images to the user.
+This project is a Node.js application built with Express.js that integrates Twilio for sending and receiving SMS messages, and also sends prompts to Marko AI to generate and return conversations and images to the user.
+
 ## Features
 - Send SMS messages via Twilio’s Programmable SMS API.
-- Receive SMS messages through a Twilio webhook and store them in PostgreSQL.
-- Send a prompt from the user's message to Marko AI, generate an image, and return it to the user.
-- Persist message details in a database.
-- Retrieve message history via an API endpoint.
+- Receive SMS messages through a Twilio webhook and store them in MongoDB.
+- Send a prompt from the user's SMS message to Marko AI, generate conversations, and return it to the user.
+- Create or update conversations with the user's message.
+- Retrieve conversation history via an API endpoint.
 - Error handling for invalid inputs and API failures.
 
 ## Prerequisites
 To run this project, ensure you have:
-- [Node.js](https://nodejs.org/) (v16 or higher)
-- [PostgreSQL](https://www.postgresql.org/) (v14 or higher)
+- [Node.js](https://nodejs.org/) (v20 or higher)
 - [Twilio account](https://www.twilio.com/) with an SMS-capable phone number
+- [MongoDB](https://www.mongodb.com/) database
 
 ## Installation
-
-1. **Clone the Repository**
-   ```bash
-   git clone https://github.com/huyhung98/rk-ai.git
-   cd rk-ai
-
-2. **Install Dependencies**
+1. **Install Dependencies**
     ```bash
     npm install
+    ```
 
-3. **Set Up Environment Variables Create a .env file in the root directory**
+2. **Set up environment variables by creating a new `.env` file in the root directory based on the `.env.example` file.**
 
-4. **Run the Application**
+3. **Run the Application**
     ```bash
     npm run dev
     or
     npm start
-The server will start at http://localhost:3000 (or the port specified in .env).
+    ```
+The server will start at http://localhost:3000 (or the port specified in `.env`).
 
 ## API Endpoints
 1. **Send SMS**
@@ -82,31 +79,57 @@ The server will start at http://localhost:3000 (or the port specified in .env).
     }
   ```
 - Response: Plain text "Message received" (200 OK).
-3. **Get all messages**
+3. **Get all conversations**
 - Method: GET
-- Endpoint: `/sms/messages`
+- Endpoint: `/sms/conversations`
 - Example:
     ```bash
-      curl http://localhost:3000/sms/messages
+      curl http://localhost:3000/sms/conversations
     ```
-- Response:
-    ```json
-        [
+  - Response:
+      ```json
           {
-            "id": 2,
-            "sid": "SM9efd301ffa72fe7d5d0931dac8216ebb",
-            "to_number": "+18573714155",
-            "from_number": "+84389807069",
-            "body": "Hello World",
-            "status": "received",
-            "direction": "inbound",
-            "created_at": "2025-03-12T09:30:45.159Z"
-          }
-        ]
-    ```
-## TODO
-- Remove send SMS API
-- Remove the Postgres DB because we don't need to store any SMS. Keep it as is for the moment
-- Add Service to prepare data and send promt request to FastAPI server
-- Add logic to return image url from Marko to Twilio
-
+            "data": [
+              {
+                "_id": "14bb7684-822d-4d3f-a70a-498f13a12884",
+                "messages": [
+                  {
+                    "fromNumber": "+84389807069",
+                    "toNumber": "+18573714155",
+                    "body": "Hi I'm Dave, how are you?",
+                    "status": "received",
+                    "direction": "inbound",
+                    "sid": "SM2bs0f3b1g1mnetu",
+                    "_id": "85b979ff-d49c-4251-9beb-082e302c4649",
+                    "timestamp": "2025-03-24T03:23:22.119Z"
+                  },
+                  {
+                    "fromNumber": "+84389807069",
+                    "toNumber": "+18573714155",
+                    "body": "Please generate for me an image of a cat",
+                    "status": "received",
+                    "direction": "inbound",
+                    "sid": "SM5mtrl664bq7pd8q",
+                    "_id": "38b52312-d051-4f96-8b38-765dffc79ebe",
+                    "timestamp": "2025-03-24T03:24:18.912Z"
+                  }
+                ]
+              }
+            ]
+         }
+      ```
+4. **SMS Message Webhook**
+    - This endpoint is used to listen for incoming requests from Marko AI and send the presigned image URLs to the user.
+    - Method: GET
+    - Endpoint: `/sms/webhook`
+    - Example:
+       ```bash
+         curl http://localhost:3000/sms/webhook
+       ```
+     - Response:
+       - 200 OK
+         ```json
+           {
+             "message": "Successfully sent all presigned image URLs"
+           }
+         ```
