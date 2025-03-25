@@ -1,11 +1,13 @@
 # RK-AI Integrate APP
 
-This project is a Node.js application built with Express.js that integrates Twilio for sending and receiving SMS messages, combined with sending prompts to Marko AI to generate and return images to the user.
+This project is a Node.js application built with Express.js that integrates Twilio for sending and receiving SMS messages, and also sends prompts to Marko AI to generate and return conversations and images to the user.
+
 ## Features
 - Send SMS messages via Twilio’s Programmable SMS API.
 - Receive SMS messages through a Twilio webhook and store them in MongoDB.
-- Send a prompt from the user's message SMS to Marko AI, generate a conversations, and return it to the user.
-- Retrieve conversations history via an API endpoint.
+- Send a prompt from the user's SMS message to Marko AI, generate conversations, and return it to the user.
+- Create or update conversations with the user's message.
+- Retrieve conversation history via an API endpoint.
 - Error handling for invalid inputs and API failures.
 
 ## Prerequisites
@@ -18,15 +20,17 @@ To run this project, ensure you have:
 1. **Install Dependencies**
     ```bash
     npm install
+    ```
 
-2. **Set up environment variables by creating a new `.env` file in the root directory based on the `env.example` file.**
+2. **Set up environment variables by creating a new `.env` file in the root directory based on the `.env.example` file.**
 
 3. **Run the Application**
     ```bash
     npm run dev
     or
     npm start
-The server will start at http://localhost:3000 (or the port specified in .env).
+    ```
+The server will start at http://localhost:3000 (or the port specified in `.env`).
 
 ## API Endpoints
 1. **Send SMS**
@@ -115,10 +119,10 @@ The server will start at http://localhost:3000 (or the port specified in .env).
          }
       ```
 4. **SMS Message Webhook**
-   - This endpoint is used to listen to incoming requests from Marko AI and send the presigned image URLs to the user.
-   - Method: GET
-   - Endpoint: `/sms/webhook`
-   - Example:
+    - This endpoint is used to listen for incoming requests from Marko AI and send the presigned image URLs to the user.
+    - Method: GET
+    - Endpoint: `/sms/webhook`
+    - Example:
        ```bash
          curl http://localhost:3000/sms/webhook
        ```
